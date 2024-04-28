@@ -1,0 +1,197 @@
+
+-- Answering business question
+
+-- Using the database containing Whole Foods Data
+USE bos_fmban_sql_analysis;
+
+-- Creating a CTE to clean up and organize all the categories for Whole Foods
+
+WITH product_category AS (
+SELECT
+	(CASE
+		WHEN category LIKE ('%beauty%') THEN 'Beauty'
+        WHEN category LIKE ('%beverages%') THEN 'Beverages'
+        WHEN category LIKE ('%body%') THEN 'Body Care'
+        WHEN category LIKE ('%bread%') THEN 'Bread, Rolls, and Bakery'
+        WHEN category LIKE ('%dairy%') THEN 'Dairy and Eggs'
+        WHEN category LIKE ('%desserts%') THEN 'Desserts'
+        WHEN category LIKE ('%floral%') THEN 'Floral'
+        WHEN category LIKE ('%frozen%') THEN 'Frozen Foods'
+        WHEN category LIKE ('%lifestyle%') THEN 'Lifestyle'
+        WHEN category LIKE ('%meat%') THEN 'Meat'
+        WHEN category LIKE ('%pantry%') THEN 'Pantry Essentials'
+        WHEN category LIKE ('%prepared%') THEN 'Prepared Foods'
+        WHEN category LIKE ('%produce%') THEN 'Produce'
+        WHEN category LIKE ('%seafood%') THEN 'Seafood'
+        WHEN category LIKE ('%snacks%') THEN 'Snacks, Chips, Salsa, and Dips'
+        WHEN category LIKE ('%supplements%') THEN 'Supplements'
+        WHEN category LIKE ('%wine%') THEN 'Wine'
+        ELSE 'Other'
+        END) AS Category_List, 
+        data_entry_order,
+        count(data_entry_order) as data_entry_id
+        FROM bfmban_data
+        GROUP BY category_list, data_entry_order
+        )
+        
+-- The following query displays all the whole foods brands and other brands for each category
+-- The query also calculates the percentage proportion of whole foods barnds and other brands
+-- Based on the result, it can be determined that the whole brands are underrepresented in majorly all categories        
+        
+	SELECT product_category.category_list,
+    SUM(CASE WHEN brand LIKE ('%365%') OR brand LIKE ('%whole%')
+		THEN '1' ELSE '0'
+		END) AS whole_foods_brands,
+	SUM(CASE WHEN brand NOT LIKE ('%365%') OR brand NOT LIKE ('%whole%')
+		THEN '1' ELSE '0'
+        END) AS other_brands,
+        
+        ROUND(((SUM(CASE WHEN brand LIKE ('%365%') OR brand LIKE ('%Whole%') THEN '1' ELSE '0' END))/
+				((SUM(CASE WHEN brand LIKE ('%365%') OR brand LIKE ('%Whole%') THEN '1' ELSE '0' END)) +
+                (SUM(CASE WHEN brand NOT LIKE ('%365%') OR brand NOT LIKE ('%Whole%') THEN '1' ELSE '0' END)))*100.0),2) AS 'proportion_of_whole_foods_brands',
+		ROUND(100.0 - ROUND((SUM(CASE WHEN brand LIKE ('%365%') OR brand LIKE ('%Whole%') THEN '1' ELSE '0' END))/
+				((SUM(CASE WHEN brand LIKE ('%365%') OR brand LIKE ('%Whole%') THEN '1' ELSE '0' END)) +
+                (SUM(CASE WHEN brand NOT LIKE ('%365%') OR brand NOT LIKE ('%Whole%') THEN '1' ELSE '0' END)))*100.0),2) AS 'proportion_of_other_brands'
+                
+                FROM bfmban_data as data_values
+                
+                INNER JOIN product_category
+					ON product_category.data_entry_order = data_values.data_entry_order
+				GROUP BY product_category.category_list
+                ORDER BY product_category.category_list
+                
+                ;
+        
+        
+-- Insight 1: Increasing premium products in pantry essentials for whole foods brand
+
+-- Using the database containing Whole Foods Data
+
+USE bos_fmban_sql_analysis;
+
+-- Creating a CTE to clean up and organize all the categories for Whole Foods
+WITH prod_categ AS (
+SELECT
+    (CASE
+			WHEN category LIKE ('%beauty%') THEN 'Beauty'
+            WHEN category LIKE ('%beverage%') THEN 'Beverages'
+            WHEN category LIKE ('%body%') THEN 'Body Care'
+            WHEN category LIKE ('%Bakery%') THEN 'Bread, Rolls & Bakery'
+            WHEN category LIKE ('%Dairy%') THEN 'Dairy and Eggs'
+            WHEN category LIKE ('%Dessert%') THEN 'Desserts'
+            WHEN category LIKE ('%Floral%') THEN 'Floral'
+            WHEN category LIKE ('%Frozen%') THEN 'Frozen Foods'
+			WHEN category LIKE ('%lifestyle%') THEN 'Lifestyle'
+            WHEN category LIKE ('%meat%') THEN 'Meat'
+            WHEN category LIKE ('%Pantry%') THEN 'Pantry Essentials'
+            WHEN category LIKE ('%prepared%') THEN 'Prepared Foods'
+            WHEN category LIKE ('%produce%') THEN 'Produce'
+            WHEN category LIKE ('%seafood%') THEN 'seafood'
+            WHEN category LIKE ('%snacks%') THEN 'Snacks, Chips, Salsa & Dips'
+            WHEN category LIKE ('%supplements%') THEN 'Supplements'
+            WHEN category LIKE ('%wine%') THEN 'Wine, Beer & Spirits'
+            ELSE '!!!'
+            END) AS categories,
+            data_entry_order,
+            count(data_entry_order) as id_data_entry
+			FROM bfmban_data
+			group by categories, data_entry_order
+            )
+
+-- The following query displays all the products for Pantry Essentials for Condiments and dressing and a bifuraction of in house and other brands
+-- The query siaplys the results after ordering it by the highest priced products
+-- The query calculates the average of price for condiments and dressing
+-- The result shows that the in-house brand does not have premium and high priced products
+
+SELECT 
+    d.name_of_product,
+
+    (CASE WHEN brand LIKE ('%whole%') 
+			OR brand LIKE ('%365%') 
+			THEN 'In-House Brand'
+			ELSE 'Other_Brands'
+		END) AS brand,
+	d.regular_price,
+    ROUND((SELECT
+		avg(regular_price)
+        from bfmban_data
+        WHERE 
+			subcategory LIKE ('%condiments%') 
+			),2) AS avg_regular_price_condiments
+from bfmban_data as d
+#inner joining the CTE with the main data set
+INNER JOIN prod_categ
+	ON prod_categ.data_entry_order = d.data_entry_order
+Where prod_categ.categories = 'Pantry Essentials'
+AND d.subcategory LIKE ('%condiments%')
+ORDER BY d.regular_price DESC
+#LIMIT 20
+;
+
+-- Insight 2: Domiance of other brands for Whole Foods Diet preference
+
+-- Using the database containing Whole Foods Data
+USE bos_fmban_sql_analysis;
+
+-- Creating a CTE to clean up and organize all the categories for Whole Foods
+
+WITH product_category AS (
+SELECT
+    (CASE
+			WHEN category LIKE ('%beauty%') THEN 'Beauty'
+            WHEN category LIKE ('%beverage%') THEN 'Beverages'
+            WHEN category LIKE ('%body%') THEN 'Body Care'
+            WHEN category LIKE ('%Bakery%') THEN 'Bread, Rolls & Bakery'
+            WHEN category LIKE ('%Dairy%') THEN 'Dairy and Eggs'
+            WHEN category LIKE ('%Dessert%') THEN 'Desserts'
+            WHEN category LIKE ('%Floral%') THEN 'Floral'
+            WHEN category LIKE ('%Frozen%') THEN 'Frozen Foods'
+			WHEN category LIKE ('%lifestyle%') THEN 'Lifestyle'
+            WHEN category LIKE ('%meat%') THEN 'Meat'
+            WHEN category LIKE ('%Pantry%') THEN 'Pantry Essentials'
+            WHEN category LIKE ('%prepared%') THEN 'Prepared Foods'
+            WHEN category LIKE ('%produce%') THEN 'Produce'
+            WHEN category LIKE ('%seafood%') THEN 'seafood'
+            WHEN category LIKE ('%snacks%') THEN 'Snacks, Chips, Salsa & Dips'
+            WHEN category LIKE ('%supplements%') THEN 'Supplements'
+            WHEN category LIKE ('%wine%') THEN 'Wine, Beer & Spirits'
+            ELSE '!!!'
+            END) AS categories,
+            data_entry_order,
+            count(data_entry_order) as id_data_entry
+			FROM bfmban_data
+			group by categories, data_entry_order
+)
+
+-- Displaying the categories with bifurcation of in-house brands and other brands along with their difference for Whole Foods Diet
+-- This result will display the domiance of other brands in the Whole Foods Diet preference over the in-house brands
+
+SELECT 
+   product_category.categories,
+    SUM(CASE WHEN brand LIKE ('%whole%') 
+			OR brand LIKE ('%365%') 
+			THEN '1'
+            ELSE '0'
+            END) as whole_foods_brands,
+	sum(CASE WHEN brand not LIKE ('%whole%') 
+			AND brand not LIKE ('%365%') 	
+			THEN '1'
+            ELSE '0'
+            END) as other_brands,
+	sum((CASE WHEN brand not LIKE ('%whole%') 
+			AND brand not LIKE ('%365%') 	
+			THEN '1'
+            ELSE '0'
+            END)- (CASE WHEN brand LIKE ('%whole%') 
+			OR brand LIKE ('%365%') 
+			THEN '1'
+            ELSE '0'
+            END)) AS difference
+FROM bfmban_data as d
+INNER JOIN product_category
+	ON product_category.data_entry_order = d.data_entry_order
+WHERE whole_foods_diet = 1
+GROUP BY product_category.categories
+ORDER BY difference DESC
+;
+
